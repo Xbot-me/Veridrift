@@ -11,7 +11,6 @@ from __future__ import annotations
 from guardrail.experiment.comparison import empty_condition
 from guardrail.experiment.models import (
     Comparison,
-    ConditionKind,
     Experiment,
     ExperimentConclusion,
     ExperimentValidity,
@@ -47,8 +46,6 @@ def assess_validity(
       * delivered workload is equivalent between control and treatment,
       * every required mechanism metric was actually measured.
     """
-    reasons: list[str] = []
-
     if intervention is None or not intervention.applied:
         return (
             ExperimentValidity.INVALID,
@@ -75,7 +72,8 @@ def assess_validity(
     required_mechanisms = [
         m
         for m in comparison.metrics
-        if m.role == "mechanism" and m.metric in {e.metric for e in experiment.expectations if e.required}
+        if m.role == "mechanism"
+        and m.metric in {e.metric for e in experiment.expectations if e.required}
     ]
     unmeasured = [m.metric for m in required_mechanisms if not m.measured]
     if unmeasured:

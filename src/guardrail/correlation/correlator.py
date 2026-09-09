@@ -7,7 +7,7 @@ from guardrail.models.verdict import CapacityResult
 from guardrail.models.workload import AmplificationModel
 
 
-class ControlledExperimentEvidenceRequired(RuntimeError):
+class ControlledExperimentEvidenceRequired(RuntimeError):  # noqa: N818 - name matches the guardrail DSL term
     """Raised if a correlation path attempts to declare SUPPORTED/REFUTED.
 
     SUPPORTED/REFUTED are ONLY reachable through the Controlled Experiment

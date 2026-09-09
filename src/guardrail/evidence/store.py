@@ -6,11 +6,15 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from guardrail.models.base import HypothesisStatus
 from guardrail.models.evidence import Evidence
 from guardrail.models.run import VerificationRun
 from guardrail.utils import GuardrailLogger
+
+if TYPE_CHECKING:
+    from guardrail.experiment.models import ExperimentRun
 
 logger = GuardrailLogger.get_logger("evidence.store")
 
@@ -84,6 +88,20 @@ class EvidenceStore:
         # Save individual findings
         findings_dir = self._ensure_dir(run_dir / "findings")
         for finding in [*run.static_findings, *run.runtime_findings]:
+            if (
+                finding.hypothesis_status
+                in (
+                    HypothesisStatus.SUPPORTED,
+                    HypothesisStatus.REFUTED,
+                )
+                and not finding.controlled_experiment_id
+            ):
+                raise ValueError(
+                    f"finding {finding.id} ({finding.rule_id}) claims "
+                    f"{finding.hypothesis_status.value} without controlled-experiment "
+                    "provenance; SUPPORTED/REFUTED is only reachable via a VALID "
+                    "controlled experiment (ControlledExperimentEngine.transition_finding)"
+                )
             finding_file = findings_dir / f"{finding.id}.json"
             finding_file.write_text(
                 finding.model_dump_json(indent=2),
@@ -264,7 +282,7 @@ class EvidenceStore:
     def _experiment_dir(self, experiment_run_id: str) -> Path:
         return self.base_path / "experiments" / experiment_run_id
 
-    def save_experiment(self, experiment_run) -> Path:
+    def save_experiment(self, experiment_run: ExperimentRun) -> Path:
         """Persist a controlled experiment run and hash every artifact.
 
         Artifact layout (all under the existing EvidenceStore manifest scheme):
@@ -287,9 +305,7 @@ class EvidenceStore:
         payloads: dict[str, Any] = {
             "experiment.json": experiment_run.experiment.model_dump_json(indent=2),
             "preconditions.json": (
-                "["
-                + ", ".join(p.model_dump_json() for p in experiment_run.preconditions)
-                + "]"
+                "[" + ", ".join(p.model_dump_json() for p in experiment_run.preconditions) + "]"
                 if experiment_run.preconditions
                 else "[]"
             ),
@@ -342,7 +358,7 @@ class EvidenceStore:
         )
         return exp_dir
 
-    def load_experiment(self, experiment_run_id: str):
+    def load_experiment(self, experiment_run_id: str) -> ExperimentRun | None:
         """Load a persisted ExperimentRun, or None if missing/corrupt."""
         from guardrail.experiment.models import ExperimentRun
 
@@ -392,7 +408,9 @@ class EvidenceStore:
                 f = exp_dir / name
                 if f.exists():
                     try:
-                        summary[name.removesuffix(".json")] = json.loads(f.read_text(encoding="utf-8"))
+                        summary[name.removesuffix(".json")] = json.loads(
+                            f.read_text(encoding="utf-8")
+                        )
                     except Exception:
                         pass
             experiments.append(summary)

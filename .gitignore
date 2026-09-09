@@ -45,3 +45,13 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Bundle / archive artifacts
+src.zip
+
+# Local environment configuration
+.env
+.env.*
+
+# Example app artifacts
+examples/**/*.db

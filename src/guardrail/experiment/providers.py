@@ -23,7 +23,6 @@ from guardrail.experiment.models import (
     Hypothesis,
     Intervention,
     Observation,
-    Precondition,
     PreconditionCheck,
 )
 from guardrail.models.measurement import Measurement
@@ -75,7 +74,11 @@ class StaticMeasurementProvider:
     def check_preconditions(self, hypothesis: Hypothesis) -> list[PreconditionCheck]:
         if self._preconditions is not None:
             return self._preconditions
-        return [PreconditionCheck(precondition_id="static", description="fixtures present", satisfied=True)]
+        return [
+            PreconditionCheck(
+                precondition_id="static", description="fixtures present", satisfied=True
+            )
+        ]
 
     def apply_intervention(self, intervention: Intervention) -> Intervention:
         if self._intervention is not None:
@@ -101,7 +104,9 @@ class StaticMeasurementProvider:
         if repetition >= len(measurements):
             raise IndexError(f"no {condition.value} measurement for repetition {repetition}")
         measurement = measurements[repetition]
-        achieved = measurement.request_metrics.requests_per_second if measurement.request_metrics else 0.0
+        achieved = (
+            measurement.request_metrics.requests_per_second if measurement.request_metrics else 0.0
+        )
         delivered = measurement.request_metrics.total_requests if measurement.request_metrics else 0
         return Observation(
             experiment_run_id=run_id,

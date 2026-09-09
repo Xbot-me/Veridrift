@@ -1,0 +1,57 @@
+# Guardrail Production Verification Configuration
+version: "1.0"
+
+target:
+  name: my-application
+  path: .
+
+production:
+  expected_concurrent_users: 100
+  peak_requests_per_second: 50
+  sustained_requests_per_second: 20
+
+database:
+  expected_rows:
+    users: 10000
+    orders: 50000
+
+policy:
+  max_p95_latency_ms: 500
+  max_p99_latency_ms: 1000
+  max_error_rate: 0.01
+  max_cpu_percent: 80
+  max_memory_percent: 80
+  max_db_connection_utilization: 0.80
+
+environment:
+  max_duration_seconds: 600
+  network_isolation: true
+  cleanup_on_exit: true
+
+workload:
+  scenarios:
+    - name: steady-state
+      pattern: constant
+      stages:
+        - duration_seconds: 300
+          target_rps: 20
+    - name: ramp-to-peak
+      pattern: ramp
+      stages:
+        - duration_seconds: 60
+          target_rps: 10
+        - duration_seconds: 60
+          target_rps: 25
+        - duration_seconds: 60
+          target_rps: 50
+        - duration_seconds: 120
+          target_rps: 50
+    - name: burst-test
+      pattern: burst
+      stages:
+        - duration_seconds: 60
+          target_rps: 20
+        - duration_seconds: 30
+          target_rps: 200
+        - duration_seconds: 60
+          target_rps: 20

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from guardrail.evidence.store import EvidenceStore
 from guardrail.experiment.comparison import build_comparison
 from guardrail.experiment.conclusion import decide_conclusion
 from guardrail.experiment.models import (
@@ -22,9 +23,11 @@ from guardrail.experiment.models import (
     ExperimentWorkload,
     Intervention,
     Observation,
+    PreconditionCheck,
 )
 from guardrail.experiment.providers import ExperimentProvider
 from guardrail.models.base import generate_id
+from guardrail.models.rule import Finding
 
 
 def apply_experiment_conclusion(experiment_run: ExperimentRun) -> str:
@@ -43,7 +46,9 @@ def apply_experiment_conclusion(experiment_run: ExperimentRun) -> str:
     return experiment_run.conclusion.status
 
 
-def transition_finding(finding, experiment_run, new_status: str | None):
+def transition_finding(
+    finding: Finding, experiment_run: ExperimentRun, new_status: str | None = None
+) -> Finding:
     """The ONLY sanctioned way to move a finding to SUPPORTED/REFUTED.
 
     The finding must belong to the experiment's hypothesis (matched by rule id),
@@ -93,11 +98,11 @@ def transition_finding(finding, experiment_run, new_status: str | None):
 class ControlledExperimentEngine:
     """Runs a controlled experiment and records a fully reproducible ExperimentRun."""
 
-    def __init__(self, store=None) -> None:
+    def __init__(self, store: EvidenceStore | None = None) -> None:
         self._store = store
 
     @property
-    def store(self):
+    def store(self) -> EvidenceStore | None:
         return self._store
 
     def run_experiment(
@@ -107,7 +112,9 @@ class ControlledExperimentEngine:
         workload: ExperimentWorkload | None = None,
         repetitions: int | None = None,
     ) -> ExperimentRun:
-        run_id = f"{experiment.id}-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{generate_id()[:6]}"
+        run_id = (
+            f"{experiment.id}-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{generate_id()[:6]}"
+        )
         workload = workload or experiment.default_workload
         if workload is None:
             raise ValueError(f"experiment {experiment.id} requires a workload definition")
@@ -121,7 +128,7 @@ class ControlledExperimentEngine:
                 status="INCONCLUSIVE",
                 validity=ExperimentValidity.INSUFFICIENT_DATA,
                 reasons=[
-                    f"precondition(s) not satisfied: "
+                    "precondition(s) not satisfied: "
                     + "; ".join(f"{p.precondition_id} ({p.detail})" for p in unmet)
                 ],
                 evidence_observation_ids=[],
@@ -144,8 +151,10 @@ class ControlledExperimentEngine:
             conclusion = ExperimentConclusion(
                 status="INCONCLUSIVE",
                 validity=ExperimentValidity.INVALID,
-                reasons=["experiment defines no intervention; a controlled experiment "
-                         "requires an explicit control->treatment change"],
+                reasons=[
+                    "experiment defines no intervention; a controlled experiment "
+                    "requires an explicit control->treatment change"
+                ],
                 evidence_observation_ids=[],
                 metric_summary=[],
             )
@@ -213,7 +222,9 @@ class ControlledExperimentEngine:
             conclusion,
         )
 
-    def _apply_intervention(self, experiment: Experiment, provider: ExperimentProvider) -> Intervention | None:
+    def _apply_intervention(
+        self, experiment: Experiment, provider: ExperimentProvider
+    ) -> Intervention | None:
         if not experiment.interventions:
             return None
         return provider.apply_intervention(experiment.interventions[0])
@@ -223,7 +234,7 @@ class ControlledExperimentEngine:
         run_id: str,
         experiment: Experiment,
         workload: ExperimentWorkload,
-        preconditions,
+        preconditions: list[PreconditionCheck],
         intervention: Intervention | None,
         control: list[Observation],
         treatment: list[Observation],

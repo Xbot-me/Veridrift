@@ -8,11 +8,7 @@ is the architectural seam this engine plugs into.
 
 from __future__ import annotations
 
-from guardrail.experiment.conclusion import (
-    ExperimentConclusion,
-    ExperimentValidity,
-    decide_conclusion,
-)
+from guardrail.experiment.conclusion import decide_conclusion
 from guardrail.experiment.engine import (
     ControlledExperimentEngine,
     apply_experiment_conclusion,
@@ -22,7 +18,9 @@ from guardrail.experiment.models import (
     Comparison,
     ConditionKind,
     Experiment,
+    ExperimentConclusion,
     ExperimentRun,
+    ExperimentValidity,
     ExperimentWorkload,
     Hypothesis,
     Intervention,

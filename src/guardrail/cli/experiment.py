@@ -12,9 +12,14 @@ from rich.table import Table
 from guardrail.evidence.store import EvidenceStore
 from guardrail.experiment.engine import ControlledExperimentEngine
 from guardrail.experiment.models import ExperimentWorkload
-from guardrail.experiment.providers import RuntimeMeasurementProvider, StaticMeasurementProvider
+from guardrail.experiment.providers import (
+    ExperimentProvider,
+    RuntimeMeasurementProvider,
+    StaticMeasurementProvider,
+)
 from guardrail.experiment.registry import registered_experiments
 from guardrail.models.measurement import Measurement
+from guardrail.models.target import Target
 from guardrail.runtime.local_process import LocalProcessRuntimeAdapter
 
 if sys.platform == "win32":
@@ -60,9 +65,7 @@ def experiment_list() -> None:
     table.add_column("Mechanism Metric(s)")
     table.add_column("Endpoints")
     for exp in registered_experiments().values():
-        mechanisms = ", ".join(
-            e.metric for e in exp.expectations if e.role == "mechanism"
-        )
+        mechanisms = ", ".join(e.metric for e in exp.expectations if e.role == "mechanism")
         table.add_row(
             exp.id,
             exp.hypothesis.id,
@@ -85,7 +88,9 @@ def experiment_list() -> None:
     type=click.Path(exists=True),
     help="JSON file(s) of recorded TREATMENT Measurements (real telemetry).",
 )
-@click.option("--path", type=click.Path(exists=True), help="Target app path for a live runtime run.")
+@click.option(
+    "--path", type=click.Path(exists=True), help="Target app path for a live runtime run."
+)
 @click.option("--port", type=int, help="Port to run the app on (live runtime run).")
 @click.option("--endpoint", type=str, help="Override the experiment target endpoint.")
 @click.option("--rps", type=float, default=None, help="Override workload target RPS.")
@@ -118,9 +123,13 @@ def experiment_run(
     experiment = registry[experiment_id]
     workload = experiment.default_workload
     if workload is None:
-        workload = ExperimentWorkload(endpoint=endpoint or "/", target_rps=rps or 30.0, duration_seconds=duration or 5.0)
+        workload = ExperimentWorkload(
+            endpoint=endpoint or "/", target_rps=rps or 30.0, duration_seconds=duration or 5.0
+        )
     if endpoint:
-        workload = workload.model_copy(update={"endpoint": endpoint if endpoint.startswith("/") else f"/{endpoint}"})
+        workload = workload.model_copy(
+            update={"endpoint": endpoint if endpoint.startswith("/") else f"/{endpoint}"}
+        )
     if rps:
         workload = workload.model_copy(update={"target_rps": rps})
     if duration:
@@ -132,7 +141,7 @@ def experiment_run(
     engine = ControlledExperimentEngine(store=store)
 
     if control_measurements and treatment_measurements:
-        provider = StaticMeasurementProvider(
+        provider: ExperimentProvider = StaticMeasurementProvider(
             control_measurements=_load_measurements(control_measurements),
             treatment_measurements=_load_measurements(treatment_measurements),
         )
@@ -235,7 +244,9 @@ def experiment_report(experiment_run_id: str) -> None:
                 f"{m.relative_change:+.2%}" if m.relative_change is not None else "—",
                 m.predicted_direction or "—",
                 "[green]yes[/green]" if m.measured else "[red]no[/red]",
-                "[green]yes[/green]" if m.meets_prediction else ("[red]contra[/red]" if m.contradicts else "—"),
+                "[green]yes[/green]"
+                if m.meets_prediction
+                else ("[red]contra[/red]" if m.contradicts else "—"),
             )
         console.print(table)
         console.print(f"Workload equivalence: {run.comparison.workload_equivalence_reason}")
@@ -245,7 +256,7 @@ def experiment_report(experiment_run_id: str) -> None:
         console.print(f"  - {r}")
 
 
-def _target_from_path(path: str):
+def _target_from_path(path: str) -> Target:
     from guardrail.discovery.engine import DiscoveryEngine
 
     return DiscoveryEngine(os.path.abspath(path)).discover().target

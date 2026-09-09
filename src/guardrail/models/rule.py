@@ -69,10 +69,14 @@ class Finding(GuardrailModel):
         ``controlled_experiment_id`` are structurally rejected so that old
         fabricated evidence cannot be re-imported or re-serialized.
         """
-        if self.hypothesis_status in (
-            HypothesisStatus.SUPPORTED,
-            HypothesisStatus.REFUTED,
-        ) and not self.controlled_experiment_id:
+        if (
+            self.hypothesis_status
+            in (
+                HypothesisStatus.SUPPORTED,
+                HypothesisStatus.REFUTED,
+            )
+            and not self.controlled_experiment_id
+        ):
             raise ValueError(
                 f"{self.rule_id} claims {self.hypothesis_status.value} without a "
                 "controlled_experiment_id. SUPPORTED/REFUTED require a valid "

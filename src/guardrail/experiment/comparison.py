@@ -14,7 +14,6 @@ import statistics
 from guardrail.experiment.metrics import MetricValue, extract_metric
 from guardrail.experiment.models import (
     Comparison,
-    ConditionKind,
     EffectDirection,
     EvidenceExpectation,
     MetricComparison,
@@ -82,9 +81,10 @@ def compare_metric(
 
     reason: str | None = None
     if not measured:
-        reason = "; ".join(
-            r for r in (control_reason, treatment_reason) if r
-        ) or "metric not measured in either condition"
+        reason = (
+            "; ".join(r for r in (control_reason, treatment_reason) if r)
+            or "metric not measured in either condition"
+        )
 
     rel = _relative_change(control_median, treatment_median)
 
@@ -92,8 +92,9 @@ def compare_metric(
     contradicts: bool | None = None
     if measured and control_median is not None and treatment_median is not None:
         direction_ok = (
-            (expectation.direction is EffectDirection.DECREASE and control_median > treatment_median)
-            or (expectation.direction is EffectDirection.INCREASE and control_median < treatment_median)
+            expectation.direction is EffectDirection.DECREASE and control_median > treatment_median
+        ) or (
+            expectation.direction is EffectDirection.INCREASE and control_median < treatment_median
         )
         threshold = expectation.min_relative_change
         if rel is not None:
@@ -161,10 +162,11 @@ def build_comparison(
 ) -> Comparison:
     """Deterministically compare control vs treatment for every expectation."""
     metrics = [
-        compare_metric(exp, control_observations, treatment_observations)
-        for exp in expectations
+        compare_metric(exp, control_observations, treatment_observations) for exp in expectations
     ]
-    equivalent, reason = workload_equivalent(control_observations, treatment_observations, workload_tolerance)
+    equivalent, reason = workload_equivalent(
+        control_observations, treatment_observations, workload_tolerance
+    )
     return Comparison(
         experiment_id=experiment_id,
         control_observation_ids=[o.id for o in control_observations],
