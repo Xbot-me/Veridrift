@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from guardrail.models.target import Target
+from guardrail.runtime.engine import RuntimeEngine
 from guardrail.runtime.local_process import LocalProcessRuntimeAdapter, find_free_port
 
 
@@ -18,6 +19,44 @@ def test_local_process_runtime_adapter_is_available():
     adapter = LocalProcessRuntimeAdapter()
     assert adapter.name == "local_process"
     assert adapter.is_available() is True
+
+
+def test_runtime_engine_is_available_no_crash():
+    """availability probing must return True/False cleanly, never raise."""
+    engine = RuntimeEngine()
+    result = engine.is_available()
+    assert isinstance(result, bool)
+    assert result is True
+
+
+def test_runtime_engine_reports_local_process():
+    """local_process is the zero-dependency runtime and should be reported."""
+    engine = RuntimeEngine()
+    runtimes = engine.available_runtimes()
+    assert "local_process" in runtimes
+
+
+def test_runtime_engine_no_runtimes_is_false(monkeypatch):
+    """If every runtime probe fails, availability must report False cleanly."""
+
+    def _explode(self):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "guardrail.runtime.local_process.LocalProcessRuntimeAdapter.is_available",
+        _explode,
+    )
+    monkeypatch.setattr(RuntimeEngine, "is_docker_available", lambda self: False)
+    engine = RuntimeEngine()
+    assert engine.available_runtimes() == []
+    assert engine.is_available() is False
+
+
+def test_runtime_engine_reports_docker_when_available(monkeypatch):
+    engine = RuntimeEngine()
+    monkeypatch.setattr(RuntimeEngine, "is_docker_available", lambda self: True)
+    runtimes = engine.available_runtimes()
+    assert "docker" in runtimes
 
 
 def test_local_process_lifecycle(tmp_path: Path):

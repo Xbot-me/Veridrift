@@ -48,7 +48,18 @@ class LocalProcessRuntimeAdapter(RuntimeAdapter):
         return "local_process"
 
     def is_available(self) -> bool:
-        return True
+        """Return whether this host can launch a local Python process."""
+        try:
+            completed = subprocess.run(
+                [sys.executable, "--version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=5,
+            )
+            return completed.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
 
     def start(
         self,

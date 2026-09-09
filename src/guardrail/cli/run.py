@@ -19,6 +19,7 @@ from guardrail.models.policy import Policy
 from guardrail.models.run import RunMetadata, VerificationRun
 from guardrail.models.verdict import Verdict
 from guardrail.policy.engine import PolicyEngine
+from guardrail.runtime.engine import RuntimeEngine
 
 console = Console()
 
@@ -63,9 +64,26 @@ def run_cmd(path: str, policy_file: str | None) -> None:
             description=f"[green]Step 2: Static analysis complete ({len(findings)} findings)[/green]",
         )
 
-        # Step 3, 4, 5
-        console.print(
-            "\n[yellow]NOTE: Runtime verification (Steps 3-5: container orchestration, load generation) requires Docker runtime. Using static + policy evaluation.[/yellow]\n"
+        # Step 3-5: Runtime availability gate (load generation lands in a later task)
+        task3 = progress.add_task("[cyan]Step 3-5: Checking runtime availability...", total=None)
+        runtime_engine = RuntimeEngine()
+        available_runtimes = runtime_engine.available_runtimes()
+        if not available_runtimes:
+            runtime_note = (
+                "No usable runtime: local_process and Docker are unavailable; "
+                "the app cannot be exercised under load."
+            )
+            console.print(f"\n[yellow]{runtime_note}[/yellow]\n")
+        else:
+            runtime_note = (
+                f"Runtime available ({', '.join(available_runtimes)}) but load "
+                "verification is not fully implemented yet. Using static + policy "
+                "evaluation; no runtime measurements were collected."
+            )
+            console.print(f"\n[yellow]{runtime_note}[/yellow]\n")
+        progress.update(
+            task3,
+            description="[green]Step 3-5: Runtime availability checked[/green]",
         )
 
         # Step 6: Policy Evaluation
@@ -81,14 +99,14 @@ def run_cmd(path: str, policy_file: str | None) -> None:
 
         static_verdicts = policy_engine.evaluate_static_findings_severity(severity_counts)
         verdicts.extend(static_verdicts)
-        # This path performs no runtime verification; without empirical evidence the
-        # run cannot be PASS even if no static severity triggered a verdict. Express
+        # This path exercises no runtime; without empirical evidence the run
+        # cannot be PASS even if no static severity triggered a verdict. Express
         # that explicitly so the run-level status reads INCONCLUSIVE, not PASS.
         verdicts.append(
             Verdict(
                 status=VerdictStatus.INCONCLUSIVE,
                 category="evidence_sufficiency",
-                reason="Static-only run; no runtime measurements were collected.",
+                reason=runtime_note,
             )
         )
         final_verdict = policy_engine.compute_final_verdict(verdicts)

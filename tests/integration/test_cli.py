@@ -57,6 +57,18 @@ class TestCLIIntegration:
         assert result.exit_code == 0
         assert "Static Analysis Findings" in result.output
 
+    def test_run_no_runtime_does_not_raise_and_is_inconclusive(self) -> None:
+        """guardrail run must never surface NotImplementedError; without a
+        usable runtime it reports INCONCLUSIVE with an explicit reason."""
+        runner = CliRunner()
+        demo_app = Path(__file__).resolve().parents[2] / "examples" / "demo_app"
+        result = runner.invoke(cli, ["run", str(demo_app)])
+        assert result.exit_code == 0, f"run failed: {result.output}"
+        assert "NotImplementedError" not in result.output
+        assert "INCONCLUSIVE" in result.output
+        assert "Runtime available" in result.output or "No usable runtime" in result.output
+        assert "Saved to evidence store" in result.output
+
     def test_full_lifecycle_run_and_report_and_compare(self, tmp_project: Path) -> None:
         runner = CliRunner()
 

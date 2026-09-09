@@ -6,9 +6,52 @@ from guardrail.models.environment import Environment
 class RuntimeEngine:
     """Orchestrator for the execution environment."""
 
-    def __init__(self, environment: Environment):
-        self.environment = environment
+    def __init__(self, environment: Environment | None = None):
+        self.environment = environment or Environment(name="default")
         self._running = False
+
+    def available_runtimes(self) -> list[str]:
+        """
+        Probe which runtimes are usable on this machine without raising.
+
+        Checks the local-process adapter first (zero-dependency), then the
+        optional Docker daemon. Any probe failure degrades to that runtime
+        simply being absent; callers are expected to handle an empty result
+        (no usable runtime) explicitly.
+
+        Returns:
+            Names of usable runtimes, e.g. ["local_process", "docker"].
+        """
+        names: list[str] = []
+
+        try:
+            from guardrail.runtime.local_process import LocalProcessRuntimeAdapter
+
+            if LocalProcessRuntimeAdapter().is_available():
+                names.append("local_process")
+        except Exception:
+            # Availability checks must never prevent a verification run.
+            pass
+
+        try:
+            from guardrail.adapters.runtime.docker import DockerRuntimeAdapter
+
+            if self.is_docker_available() and DockerRuntimeAdapter:
+                names.append("docker")
+        except Exception:
+            # Availability checks must never prevent a verification run.
+            pass
+
+        return names
+
+    def is_available(self) -> bool:
+        """
+        True if at least one execution runtime (local process or Docker) is usable.
+
+        Never raises: availability probing must not crash the CLI; callers
+        degrade to an explicit INCONCLUSIVE outcome when nothing is usable.
+        """
+        return bool(self.available_runtimes())
 
     def setup(self) -> bool:
         """
